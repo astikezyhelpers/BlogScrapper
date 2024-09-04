@@ -1,67 +1,32 @@
-# import pandas as pd
-# from transformers import MT5ForConditionalGeneration, MT5Tokenizer
-
-# # Load the scraped data
-# input_file = 'reformatted_hindi_to_english_learning_blogs.json'
-# df = pd.read_json(input_file)
-
-# # Initialize the mT5 small model and tokenizer
-# model_name = "google/mt5-small"
-# tokenizer = MT5Tokenizer.from_pretrained(model_name)
-# model = MT5ForConditionalGeneration.from_pretrained(model_name)
-
-# def generate_content(input_text):
-#     # Prepare the input for the model
-#     input_ids = tokenizer.encode(input_text, return_tensors='pt', truncation=True, max_length=512)
-
-#     # Generate output using the model
-#     outputs = model.generate(input_ids, max_length=512, num_beams=5, early_stopping=True)
-
-#     # Decode the output
-#     decoded_output = tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-#     return decoded_output
-
-# # Process each relevant content item
-# recreated_content = []
-# for index, row in df.iterrows():
-#     # Combine headings and paragraphs into a single input string
-#     combined_content = " ".join(row['relevant_content']['headings'] + row['relevant_content']['paragraphs'])
-
-#     # Generate new content based on the combined content
-#     new_content = generate_content(combined_content)
-
-#     # Store the new content in the list
-#     recreated_content.append(new_content)
-
-# # Create a new DataFrame to save the recreated content
-# output_df = pd.DataFrame({
-#     'title': df['title'],
-#     'link': df['link'],
-#     'recreated_content': recreated_content
-# })
-
-# # Save the new content to a JSON file
-# output_df.to_json('recreated_hindi_to_english_learning_blogs.json', index=False, force_ascii=False)
-
-# print("Content generation completed and saved to 'recreated_hindi_to_english_learning_blogs.json'")
-
-
-
 import json
 from transformers import MT5ForConditionalGeneration, T5Tokenizer
 from collections import Counter
 
-# Initialize the mT5-mini model and tokenizer
+# Initialize the mT5-small model and tokenizer
 model_name = "google/mt5-small"
 tokenizer = T5Tokenizer.from_pretrained(model_name)
 model = MT5ForConditionalGeneration.from_pretrained(model_name)
 
 # Function to rephrase text
 def rephrase_text(text):
-    inputs = tokenizer.encode("paraphrase: " + text, return_tensors="pt", max_length=512, truncation=True)
-    outputs = model.generate(inputs, max_length=512, num_beams=4, early_stopping=True)
+    # Check if the input text is empty
+    if not text.strip():
+        return "No content to rephrase."
+    
+    # Prepare the input for the model
+    prompt = f"paraphrase: {text}"
+    inputs = tokenizer.encode(prompt, return_tensors="pt", max_length=10, truncation=False)
+    
+    # Generate output
+    outputs = model.generate(inputs, max_length=512, num_beams=5, early_stopping=True)
+    
+    # Decode the output
     rephrased_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    
+    # Check if the output is a placeholder
+    if rephrased_text == "<extra_id_0>" or not rephrased_text.strip():
+        return "Rephrasing failed. Please check the input."
+    
     return rephrased_text
 
 # Function to match keywords in the title
@@ -87,8 +52,8 @@ def process_json(input_file, output_file, keywords):
 
     if best_match:
         # Rephrase headings and paragraphs
-        rephrased_headings = [rephrase_text(heading) for heading in best_match['relevant_content']['headings']]
-        rephrased_paragraphs = [rephrase_text(paragraph) for paragraph in best_match['relevant_content']['paragraphs']]
+        rephrased_headings = [rephrase_text(heading) for heading in best_match['relevant_content']['headings'] if heading.strip()]
+        rephrased_paragraphs = [rephrase_text(paragraph) for paragraph in best_match['relevant_content']['paragraphs'] if paragraph.strip()]
 
         # Prepare the rephrased content
         rephrased_content = {
