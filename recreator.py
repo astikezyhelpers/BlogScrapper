@@ -1,33 +1,46 @@
 import json
-from transformers import MT5ForConditionalGeneration, T5Tokenizer
+import requests
+import time
 from collections import Counter
 
-# Initialize the mT5-small model and tokenizer
-model_name = "google/mt5-small"
-tokenizer = T5Tokenizer.from_pretrained(model_name)
-model = MT5ForConditionalGeneration.from_pretrained(model_name)
+# Replace this with your API key
+API_KEY = "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"
+API_URL = "https://api-inference.huggingface.co/models/Vamsi/T5_Paraphrase_Paws "
+
+headers = {
+    "Authorization": f"Bearer {API_KEY}"
+}
 
 # Function to rephrase text
 def rephrase_text(text):
-    # Check if the input text is empty
-    if not text.strip():
-        return "No content to rephrase."
-    
-    # Prepare the input for the model
-    prompt = f"paraphrase: {text}"
-    inputs = tokenizer.encode(prompt, return_tensors="pt", max_length=10, truncation=False)
-    
-    # Generate output
-    outputs = model.generate(inputs, max_length=512, num_beams=5, early_stopping=True)
-    
-    # Decode the output
-    rephrased_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    
-    # Check if the output is a placeholder
-    if rephrased_text == "<extra_id_0>" or not rephrased_text.strip():
-        return "Rephrasing failed. Please check the input."
-    
-    return rephrased_text
+    payload = {
+        "inputs": f"paraphrase: {text}",
+    }
+
+    while True:
+        response = requests.post(API_URL, headers=headers, json=payload)
+        response_json = response.json()
+        
+        # Print the full API response
+        print("API Response:", response_json)
+        
+        # Check if the model is still loading
+        if "error" in response_json and "currently loading" in response_json["error"]:
+            print(f"Model is loading. Waiting for {response_json.get('estimated_time', 20)} seconds...")
+            time.sleep(response_json.get('estimated_time', 20))
+        else:
+            try:
+                # Extract generated text and remove the input text from it
+                generated_text = response_json[0]["generated_text"]
+                
+                # Remove the prefix "paraphrase:" and the original text
+                # This assumes the input text is concatenated in the output, so we split it and take the second part.
+                if "paraphrase:" in generated_text:
+                    generated_text = generated_text.replace(f"paraphrase: {text}", "").strip()
+                return generated_text
+            except KeyError:
+                print("Error: 'generated_text' not found in the response.")
+                return None
 
 # Function to match keywords in the title
 def match_keywords(title, keywords):
